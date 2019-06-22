@@ -57,8 +57,8 @@ sigma_q = 0.01; % noise for current camera orientation
 sigma_p = 0.1; % 0.2, noise for current camera position
 sigma_z = 0.1;
 
-sigma_fc = 30;
-sigma_cc = 10;
+sigma_fc = 0;
+sigma_cc = 0;
 
 featureExtracted = cell(NumOfPoses, 1);
 f_tilde = cell(NumOfPoses, 1);
@@ -168,7 +168,7 @@ end
 %         end        
 % end
 
-[AbsolutePoses_InvDep,FeaturesBag_InvDep_xyz,scale_InvDep] = Scale_Position(AbsolutePoses_true,AbsolutePoses_InvDep,FeaturesBag_InvDep_xyz,FeatureBag_true_xyz);
+% [AbsolutePoses_InvDep,FeaturesBag_InvDep_xyz,scale_InvDep] = Scale_Position(AbsolutePoses_true,AbsolutePoses_InvDep,FeaturesBag_InvDep_xyz,FeatureBag_true_xyz);
 
 %% Compute error
 % FeaturesBag

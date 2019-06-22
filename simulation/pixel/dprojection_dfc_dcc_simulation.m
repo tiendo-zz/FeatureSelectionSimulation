@@ -23,14 +23,14 @@ for k = 0:featureNums-1
     % residual
     residual_tmp = Ci_z_f(1:2,k+1) - Ci_z_f_hat(1:2,k+1);
     gamma = norm(residual_tmp);
-    if  gamma > thresh % 16.27, chi-square for d.o.f = 3, p = 0.001
-        if gamma > thresh*1.5
-            flag = 2;
-        else
-            flag = 1;
-        end
-        continue;
-    end
+%     if  gamma > thresh % 16.27, chi-square for d.o.f = 3, p = 0.001
+%         if gamma > thresh*1.5
+%             flag = 2;
+%         else
+%             flag = 1;
+%         end
+%         continue;
+%     end
     
     % Jacobian
     residual(2*row_count+1:2*row_count+2,1) = residual_tmp;
