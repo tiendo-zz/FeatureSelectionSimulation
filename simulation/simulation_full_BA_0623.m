@@ -7,6 +7,7 @@ addpath('../utilities/P3P/');
 addpath('./pixel/');
 addpath('../check_data/');
 addpath('../InverseDepth/Triangulation/');
+addpath('../InverseDepth/PnP/');
 addpath('../InverseDepth/Jacobian/pixel/');
 addpath('../InverseDepth/Jacobian/homogeneous/');
 addpath('../RobustCostFunction/');
@@ -52,10 +53,10 @@ end
 % MaxIter = 3;
 % for iter = 0:MaxIter
 
-sigma_homo = 1e-3; % noise for measurement
-sigma_q = 0.1; % noise for current camera orientation
+sigma_homo = 1e-5; % noise for measurement
+sigma_q = 0.01; % noise for current camera orientation
 sigma_p = 0.01; % 0.2, noise for current camera position
-sigma_z = 0.1;
+sigma_z = 0.01;
 
 sigma_fc = 0;
 sigma_cc = 0;
@@ -104,47 +105,13 @@ for k = 2:NumOfPoses
     AbsolutePoses(:,:,k) = [Ck_R_W Ck_p_W];
 end
 
+VisualizeMultiPoses(AbsolutePoses_true, FeatureBag_true_xyz, 1:(NumOfPoses-1), NumOfPoses);
 
-[AbsolutePoses_InvDep,FeaturesBag_InvDep,~,CameraParams_Invdep,error_intrinsic] = ...
-    simulation_full_BA_InvDep_pixel_2(PoseGraphMatrix,...
+[AbsolutePoses_InvDep,FeaturesBag_InvDep,measurePoses] = ...
+            simulation_full_BA_InvDep(PoseGraphMatrix, ...
                                       AbsolutePoses, ...
-                                      featureExtracted_pixel, ...
-                                      NumOfPoses,CameraParams,K_true);
-
-
-figure;
-subplot(2,2,1);
-plot(3:NumOfPoses,sigma_fc*ones(1,NumOfPoses-2),'b-');hold on;
-plot(3:NumOfPoses,error_intrinsic(1,3:end),'r-');hold on;
-legend('input','output');
-title('error of fx');
-xlabel('Number of camera poses');
-ylabel('Error of intrinsic matrix'); 
-subplot(2,2,2);
-plot(3:NumOfPoses,sigma_fc*ones(1,NumOfPoses-2),'b-');hold on;
-plot(3:NumOfPoses,error_intrinsic(2,3:end),'r-');hold on;
-legend('input','output');
-title('error of fy');
-xlabel('Number of camera poses');
-ylabel('Error of intrinsic matrix'); 
-subplot(2,2,3);
-plot(3:NumOfPoses,sigma_cc*ones(1,NumOfPoses-2),'b-');hold on;
-plot(3:NumOfPoses,error_intrinsic(3,3:end),'r-');hold on;
-legend('input','output');
-title('error of cx');
-xlabel('Number of camera poses');
-ylabel('Error of intrinsic matrix'); 
-subplot(2,2,4);
-plot(3:NumOfPoses,sigma_cc*ones(1,NumOfPoses-2),'b-');hold on;
-plot(3:NumOfPoses,error_intrinsic(4,3:end),'r-');hold on;
-legend('input','output');
-title('error of cy');
-xlabel('Number of camera poses');
-ylabel('Error of intrinsic matrix'); 
-
-% saveas(gcf,[codepath,'/simulation/results/Incremental_BA,sigma_z=',num2str(sigma_z),'.jpg']);
-% saveas(gcf,[codepath,'/simulation/results/Incremental_BA,sigma_z=',num2str(sigma_z),'.fig']);
-
+                                      featureExtracted, ...
+                                      NumOfPoses);
 
 % transform FeaturesBag of Inverse Depth param into Cartesian param
 FeaturesBag_InvDep_xyz = zeros(size(FeaturesBag_InvDep));
@@ -154,6 +121,8 @@ for k = 1:NumOfFeatures
        FeaturesBag_InvDep_xyz(4,k) = FeaturesBag_InvDep(4,k);
     end
 end
+
+VisualizeMultiPoses(AbsolutePoses_InvDep, FeaturesBag_InvDep_xyz, 1:(NumOfPoses-1), NumOfPoses);
 
 % % reprojection 
 % for i = 1:NumOfPoses

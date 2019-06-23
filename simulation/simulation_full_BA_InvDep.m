@@ -19,7 +19,13 @@ for newPose = 1:NumOfPoses
          C2_R_C1 = AbsolutePoses(:,1:3,2);
          C2_t_C1 = AbsolutePoses(:,4,2);
          % Triangulation
-         FeaturesBag = LinearTriangulation_5pt_InvDep(PairWiseMatches,PoseGraphMatrix, CameraParams, C2_R_C1', -C2_R_C1'*C2_t_C1);
+
+         FeaturesBag = LinearTriangulation_5pt_InvDep_nointrinsic(PairWiseMatches, ...
+                                                    PoseGraphMatrix, ...
+                                                    C2_R_C1', ...
+                                                    -C2_R_C1'*C2_t_C1, 1e-1);
+
+                                                  
          refPose = 1;
          scalePose = 2;
          else

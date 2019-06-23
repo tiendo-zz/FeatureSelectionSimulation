@@ -1,6 +1,5 @@
-function Cr_P = LinearTriangulation_5pt_InvDep(matches, matches_pixel, PoseGraphMatrix, C1_R_C2, C1_t_C2,threshold,CameraParams)
+function Cr_P = LinearTriangulation_5pt_InvDep_nointrinsic(matches, PoseGraphMatrix, C1_R_C2, C1_t_C2, threshold)
 
-global CameraModel
 
 Y = LinearTriangulation_InverseDepth(matches, [eye(3) zeros(3,1)], [C1_R_C2(:,:,1)', -C1_R_C2(:,:,1)'*C1_t_C2]);
 
@@ -19,13 +18,13 @@ for l = ind
     C2_T_C1 = [C1_R_C2(:,:,1)', -C1_R_C2(:,:,1)'*C1_t_C2];
     C1_p_f = Y_xyz(1:3,l);
     C1_p_f = C1_p_f(1:3)/C1_p_f(3);    
-    C1_p_f = StaticDistort(CameraParams.fc,CameraParams.cc,CameraParams.kc,C1_p_f(1:2),CameraModel);
+    
     C2_p_f = C2_T_C1*[Y_xyz(1:3,l);1];
     C2_p_f = C2_p_f(1:3)/C2_p_f(3);
-    C2_p_f = StaticDistort(CameraParams.fc,CameraParams.cc,CameraParams.kc,C2_p_f(1:2),CameraModel);
     
-    reproj_error_1 = norm(C1_p_f(1:2) - matches_pixel(l,1:2)');
-    reproj_error_2 = norm(C2_p_f(1:2) - matches_pixel(l,4:5)');
+    
+    reproj_error_1 = norm(C1_p_f(1:2) - matches(l,1:2)');
+    reproj_error_2 = norm(C2_p_f(1:2) - matches(l,4:5)');
     if reproj_error_1 > threshold || reproj_error_2 > threshold
        ind(find(ind==l)) = 0;
     end

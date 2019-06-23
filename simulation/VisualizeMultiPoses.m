@@ -1,7 +1,7 @@
 function VisualizeMultiPoses(AbsolutePoses, FeaturesBag, usedPoses, newPose)
 
 figure; hold on;
-scale = 0.5;
+scale = 2;
 for l = usedPoses
     DrawAxis(-AbsolutePoses(:,1:3,l)'*AbsolutePoses(:,4,l), AbsolutePoses(:,1:3,l)', scale);
     DrawCamera(-AbsolutePoses(:,1:3,l)'*AbsolutePoses(:,4,l), AbsolutePoses(:,1:3,l)', scale, 'k');    

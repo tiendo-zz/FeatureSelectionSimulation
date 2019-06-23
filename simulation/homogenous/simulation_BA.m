@@ -1,5 +1,5 @@
 clear all; close all;clc
-codepath = '/home/marsfei/Fei/PTAM';
+codepath = '/home/marsfei/Documents/MATLAB/FeatureSelectionSimulation/';
 
 addpath(codepath);
 addpath([codepath,'/Drawings/']);
@@ -9,6 +9,7 @@ addpath([codepath,'/BundleAdjustment']);
 addpath([codepath,'/RobustCostFunction/']);
 addpath([codepath,'/InverseDepth/']);
 addpath([codepath,'/TwoViewReconstruction/']);
+addpath([codepath,'/utilities/Drawings']);
 
 NumOfFeatures = 100;
 NumOfPoses = 8;
