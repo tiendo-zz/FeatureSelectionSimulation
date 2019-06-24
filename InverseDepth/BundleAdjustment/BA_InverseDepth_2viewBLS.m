@@ -60,11 +60,11 @@ for featk = featureAvailableList %0:size(PoseGraphMatrix,1)-1
        poses_see_featk(b) = [];
    end
    
-   if (NumOfPoses > 5) && (length(poses_see_featk) < 3)
-       outlier_num = outlier_num + 1;
-       EraseId(outlier_num) = featk;
-       continue;
-   end
+%    if (NumOfPoses > 20) && (length(poses_see_featk) < 3)
+%        outlier_num = outlier_num + 1;
+%        EraseId(outlier_num) = featk;
+%        continue;
+%    end
    
    
    count_measure_single = 0;
@@ -195,12 +195,8 @@ residual(2*meascount+1:end,:) = [];
 A22_inv(3*featcount+1:end,:) = [];
 A22_inv(:,3*featcount+1:end) = [];
 
-if iter >= 2
-    if norm_iter > norm(residual)
-        regulator = regulator * 0.8;
-    else
-        regulator = regulator * 1.25;
-    end
+if iter >= 5
+    regulator = regulator * 0.95;
 end
 
 norm_iter = norm(residual);

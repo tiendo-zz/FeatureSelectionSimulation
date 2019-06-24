@@ -16,6 +16,8 @@ for newPose = 1:NumOfPoses
          PairWiseMatches(:,1:2) = featureExtracted{1}(1:2,PairWiseMatches(:,3))';
          PairWiseMatches(:,4:5) = featureExtracted{2}(1:2,PairWiseMatches(:,6))';
          
+         % normalize 2nd pose translation
+         AbsolutePoses(:,4,2) = AbsolutePoses(:,4,2)/norm(AbsolutePoses(:,4,2));
          C2_R_C1 = AbsolutePoses(:,1:3,2);
          C2_t_C1 = AbsolutePoses(:,4,2);
          % Triangulation
@@ -30,11 +32,11 @@ for newPose = 1:NumOfPoses
          scalePose = 2;
          else
            % change pixel value to homo 
-           [Cn_R_Cr, Cn_t_Cr, InlierIdx, ~, Cr_P, Cn_z,idx_3d] = P3P_RANSAC_InvDep(PoseGraphMatrix, AbsolutePoses,  ...
+           [Cn_R_Cr, Cn_t_Cr, InlierIdx, ~, Cr_P, Cn_z, idx_3d] = P3P_RANSAC_InvDep(PoseGraphMatrix, AbsolutePoses,  ...
                                                          featureExtracted,                      ...
                                                          measurePoses, newPose,                      ...
                                                          FeaturesBag, eye(3),          ...
-                                                         500, 0.7, 0.001);
+                                                         1000, 0.7, 1e-3);
            
            fprintf('P3P corresponding : %f\n', length(idx_3d)); 
            if  length(InlierIdx) < 4 
@@ -62,12 +64,14 @@ for newPose = 1:NumOfPoses
        end
        
       %% 7. Triangulation
-      FeaturesBag = MultiPoseTriangulation_InvDep(FeaturesBag,           ...
-                                         AbsolutePoses,         ...
-                                         PoseGraphMatrix,       ...
-                                         newPose, measurePoses,    ...
-                                         featureExtracted,      ...                                         
-                                         CameraParams,0.01);
+      if length(measurePoses) > 2  
+        FeaturesBag = MultiPoseTriangulation_InvDep_nointrinsic(FeaturesBag,           ...
+                                                              AbsolutePoses,         ...
+                                                              PoseGraphMatrix,       ...
+                                                              newPose, measurePoses,    ...
+                                                              featureExtracted,      ...                                         
+                                                              CameraParams,0.01);
+      end
 
           
       fprintf('Number of triangulated features: %d\n', length(find(FeaturesBag(4,:) ~= 0)));
@@ -76,8 +80,8 @@ for newPose = 1:NumOfPoses
       measurePoses = [measurePoses newPose];
           
        % there need at least 3 images for ba   
-       if length(measurePoses) > 2
-            [FeaturesBag, AbsolutePoses, ~, ~,~,~] = BA_InverseDepth_2viewBLS_Robust(FeaturesBag, AbsolutePoses, PoseGraphMatrix, featureExtracted, measurePoses, CameraParams,1e-2);
+       if length(measurePoses) > 2           
+           [FeaturesBag, AbsolutePoses, ~, ~,~] = BA_InverseDepth_2viewBLS(FeaturesBag, AbsolutePoses, PoseGraphMatrix, featureExtracted, measurePoses, CameraParams);
 %           [FeaturesBag, AbsolutePoses, ~, ~,~,~] = BA_InverseDepth_2viewBLS_simulation(FeaturesBag, AbsolutePoses, PoseGraphMatrix, featureExtracted, measurePoses, CameraParams);
 %           [FeaturesBag, AbsolutePoses, ~, ~,~,~] = BA_InverseDepth_simulation(FeaturesBag, AbsolutePoses, PoseGraphMatrix, featureExtracted, measurePoses, CameraParams);
        end       

@@ -46,7 +46,7 @@ while norm(res) > 1e-5 && iter < maxIter
     norm_res_log(iter) = norm(res);
     iter = iter + 1;
     
-%     fprintf('Iter :%d, norm: %f\n', iter, norm(res));
+%    fprintf('Iter :%d, norm: %f\n', iter, norm(res));
 
 end
 

@@ -8,6 +8,7 @@ addpath('./pixel/');
 addpath('../check_data/');
 addpath('../InverseDepth/Triangulation/');
 addpath('../InverseDepth/PnP/');
+addpath('../InverseDepth/BundleAdjustment/');
 addpath('../InverseDepth/Jacobian/pixel/');
 addpath('../InverseDepth/Jacobian/homogeneous/');
 addpath('../RobustCostFunction/');
@@ -95,16 +96,21 @@ q_tilde = zeros(3,NumOfPoses);
 p_tilde = zeros(3,NumOfPoses);
 AbsolutePoses = AbsolutePoses_true;
 for k = 2:NumOfPoses
-    q_tilde(:,k) = randn(3,1)*sigma_q;
+    if k > 2
+        q_tilde(:,k) = randn(3,1)*sigma_q;
+        p_tilde(:,k) = sigma_p*randn(3,1);
+    else
+        q_tilde(:,k) = zeros(3,1);
+        p_tilde(:,k) = zeros(3,1);
+    end
     dq = [0.5*q_tilde(:,k);1];
-    dq = dq / norm(dq);   
-    p_tilde(:,k) = sigma_p*randn(3,1);
+    dq = dq / norm(dq);       
     Ck_R_W = quat2rot(quat_mul(dq, rot2quat(AbsolutePoses_true(:,1:3,k))));
     Ck_p_W = -Ck_R_W*(-AbsolutePoses_true(:,1:3,k)'*AbsolutePoses_true(:,4,k) + p_tilde(:,k));
     
     AbsolutePoses(:,:,k) = [Ck_R_W Ck_p_W];
 end
-
+figure(1);
 VisualizeMultiPoses(AbsolutePoses_true, FeatureBag_true_xyz, 1:(NumOfPoses-1), NumOfPoses);
 
 [AbsolutePoses_InvDep,FeaturesBag_InvDep,measurePoses] = ...
@@ -121,8 +127,6 @@ for k = 1:NumOfFeatures
        FeaturesBag_InvDep_xyz(4,k) = FeaturesBag_InvDep(4,k);
     end
 end
-
-VisualizeMultiPoses(AbsolutePoses_InvDep, FeaturesBag_InvDep_xyz, 1:(NumOfPoses-1), NumOfPoses);
 
 % % reprojection 
 % for i = 1:NumOfPoses
@@ -141,7 +145,10 @@ VisualizeMultiPoses(AbsolutePoses_InvDep, FeaturesBag_InvDep_xyz, 1:(NumOfPoses-
 %         end        
 % end
 
-% [AbsolutePoses_InvDep,FeaturesBag_InvDep_xyz,scale_InvDep] = Scale_Position(AbsolutePoses_true,AbsolutePoses_InvDep,FeaturesBag_InvDep_xyz,FeatureBag_true_xyz);
+
+[AbsolutePoses_InvDep,FeaturesBag_InvDep_xyz,scale_InvDep] = Scale_Position(AbsolutePoses_true,AbsolutePoses_InvDep,FeaturesBag_InvDep_xyz,FeatureBag_true_xyz);
+figure(2);
+VisualizeMultiPoses(AbsolutePoses_InvDep, FeaturesBag_InvDep_xyz, 1:(NumOfPoses-1), NumOfPoses);
 
 %% Compute error
 % FeaturesBag
@@ -171,6 +178,6 @@ plot(error_r(:,1));
 title('rotation');
 subplot(2,1,2);
 plot(error_t(:,1));
-title(['position, sigma z : ',num2str(sigma_z)]);
+title('position');
 % saveas(gcf,['result/',CameraMotion,'/CameraPose_2viewLS_',CameraMotion,'_error with sigma_z : ',num2str(sigma_z),'.fig']);
 % saveas(gcf,['result/',CameraMotion,'/CameraPose_2viewLS_',CameraMotion,'_error with sigma_z : ',num2str(sigma_z),'.jpg']);
