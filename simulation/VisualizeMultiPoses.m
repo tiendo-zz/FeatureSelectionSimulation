@@ -1,6 +1,7 @@
 function VisualizeMultiPoses(AbsolutePoses, FeaturesBag, usedPoses, newPose)
 
-figure; hold on;
+figure;
+hold on;
 scale = 2;
 for l = usedPoses
     DrawAxis(-AbsolutePoses(:,1:3,l)'*AbsolutePoses(:,4,l), AbsolutePoses(:,1:3,l)', scale);
@@ -19,8 +20,9 @@ P = AbsolutePoses(:,1:3,newPose)'*(P - repmat(AbsolutePoses(:,4,newPose), [1 siz
 plot3(P(1,:), P(2,:), P(3,:), 'bo', 'markerFacecolor', 'b', 'markerSize', 3);    
 axis([-100 100 -100 100 -100 100]);
 grid on;
-
+hold off;
 end
+
 function DrawCamera(c, R, s, color)
 p1 = c + s*R*[sqrt(2);sqrt(2);2]/2;
 p2 = c + s*R*[-sqrt(2);sqrt(2);2]/2;

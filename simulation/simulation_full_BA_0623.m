@@ -110,7 +110,6 @@ for k = 2:NumOfPoses
     
     AbsolutePoses(:,:,k) = [Ck_R_W Ck_p_W];
 end
-figure(1);
 VisualizeMultiPoses(AbsolutePoses_true, FeatureBag_true_xyz, 1:(NumOfPoses-1), NumOfPoses);
 
 [AbsolutePoses_InvDep,FeaturesBag_InvDep,measurePoses] = ...
@@ -147,7 +146,6 @@ end
 
 
 [AbsolutePoses_InvDep,FeaturesBag_InvDep_xyz,scale_InvDep] = Scale_Position(AbsolutePoses_true,AbsolutePoses_InvDep,FeaturesBag_InvDep_xyz,FeatureBag_true_xyz);
-figure(2);
 VisualizeMultiPoses(AbsolutePoses_InvDep, FeaturesBag_InvDep_xyz, 1:(NumOfPoses-1), NumOfPoses);
 
 %% Compute error
