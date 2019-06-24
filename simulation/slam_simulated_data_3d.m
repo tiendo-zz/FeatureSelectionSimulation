@@ -1,11 +1,12 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Load configuration settings
-% TODO: Move implementation of trajectory generators in seperate file
+% TODO: Move implementation of trajectory generators in a function
 
 % Timing configuration parameters
 time_config.duration = 20;                 % Duration of the experiment (s)
 time_config.time_step = 1;                 % System timestep (s)
 time_config.sigma_time_step = 0.0001;      % Timestep gitter profile (s)
+
 % Trajectory configuration parameters
 trajectory_config.group = 'infinity_morbius';
 trajectory_config.radius = 35;            % Trajectory sphere radius (m)
@@ -19,32 +20,33 @@ trajectory_config.orientation = @(t)...
      (1+sin(trajectory_config.angular_freq*t))*(-sin(trajectory_config.angular_freq*t)*cos(trajectory_config.angular_freq*t)), -sin(trajectory_config.angular_freq*t)+(1+sin(trajectory_config.angular_freq*t))*cos(trajectory_config.angular_freq*t)^2, -sin(trajectory_config.angular_freq*t)*cos(trajectory_config.angular_freq*t);...
                                                                                       cos(trajectory_config.angular_freq*t)^2,                                              cos(trajectory_config.angular_freq*t)*sin(trajectory_config.angular_freq*t),                                       -sin(trajectory_config.angular_freq*t)];
 % Measurements configuration parameters
-measurements_config.cov_relative_pose = [0.02^2, 0, 0,     0, 0, 0;
-                                         0, 0.02^2, 0,     0, 0, 0;
-                                         0, 0, 0.02^2,     0, 0, 0;
-                                         0, 0, 0,      0.1^2, 0, 0;
-                                         0, 0, 0,      0, 0.1^2, 0;
-                                         0, 0, 0,      0, 0, 0.1^2];                                         
+% 6-dof relative pose (orientation, position) measurement parameters 
+measurements_config.cov_relative_pose = [0.2^2, 0, 0,     0, 0, 0;
+                                         0, 0.2^2, 0,     0, 0, 0;
+                                         0, 0, 0.2^2,     0, 0, 0;
+                                         0, 0, 0,      1^2, 0, 0;
+                                         0, 0, 0,      0, 1^2, 0;
+                                         0, 0, 0,      0, 0, 1^2];                                       
                                                                                   
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Generate and visualize data for a slam experiment
+% Generate and plot/visualize data for a slam experiment
 
 % Real world simulation: Generate data for a slam experiment
 [time, trajectory, measurements] = real_world_simulation(time_config, trajectory_config, measurements_config);
 
-% Visualize the trajectory 
-figure('Name','EKF animation'); hold on;
+% Visualize the trajectory and enviroment
+% TODO: Make the trajectory visualization into animation
+% TODO: Make the ploting for 
+figure('Name','True trajectory'); hold on;
 xlabel('x (m)')
 ylabel('y (m)')
 zlabel('z (m)')
 grid on
-axis equal
-    
+axis equal 
 for i=1:time.count_time_steps
     p_true = trajectory.position_true(:,i);
     R_true = trajectory.orientation_true(:,:,i);
     scatter3(p_true(1), p_true(2), p_true(3), 15, 'g' , 'filled');
-    
     quiver3(p_true(1), p_true(2), p_true(3),...
             R_true(1,1), R_true(2,1), R_true(3,1),...
             'color', 'r', 'LineWidth', 2, 'MaxHeadSize', 0.5);
@@ -54,68 +56,51 @@ for i=1:time.count_time_steps
     quiver3(p_true(1), p_true(2), p_true(3),...
             R_true(1,3), R_true(2,3), R_true(3,3),...
             'color', 'b', 'LineWidth', 2, 'MaxHeadSize', 0.5);
-    
 end
 
-
-
-
-
-% Initialize the animation figure
-if animation
-    animation_fig = figure('Name','EKF animation');
-    disp(['Time step: ', num2str(0.0), ' Cloned pose: ',num2str(1)]);
-    xlabel('x (m)')
-    ylabel('y (m)')
-    zlabel('z (m)')
+% Plot the true and measured relative 6DoF poses
+relative_rpy_true = flipud(quat2eul(measurements.relative_pose_true(1:4,:)','ZYX')');
+relative_rpy_meas = flipud(quat2eul(measurements.relative_pose_meas(1:4,:)','ZYX')');
+alpha = 2*pi*round((relative_rpy_true - relative_rpy_meas)/(2*pi));
+relative_rpy_meas = relative_rpy_meas + alpha;
+error_relative_rpy = zeros(3, time.count_time_steps);
+for i=1:size(error_relative_rpy,2)
+    roll = relative_rpy_true(1,i);
+    pitch = relative_rpy_true(2,i);
+    yaw = relative_rpy_true(3,i);
+    H_rpy = [cos(yaw)/cos(pitch), sin(yaw)/cos(pitch), 0;
+                       -sin(yaw),            cos(yaw), 0;
+             cos(yaw)*tan(pitch), sin(yaw)*tan(pitch), 1];        
+    error_relative_rpy(:,i) = sqrt(diag(H_rpy * measurements_config.cov_relative_pose(1:3,1:3) * H_rpy')); 
+end
+figure('Name','Relative 6DoF orientation'); hold on
+angle = {'roll (rad)','pitch (rad)','yaw (rad)'};
+for i = 1:3
+    subplot(3,1,i);
+    plot(time.absolute_time_true, relative_rpy_meas(i,:), 'b'); hold on;
+    plot(time.absolute_time_true, relative_rpy_true(i,:), 'g'); hold on;
+    plot(time.absolute_time_true, relative_rpy_true(i,:) + 3*error_relative_rpy(i,:),'r'); hold on;
+    plot(time.absolute_time_true, relative_rpy_true(i,:) - 3*error_relative_rpy(i,:),'r'); hold on;
+    xlabel('time (s)')
+    ylabel(angle{i})
+    legend('measured','true','3\sigma - bound')
     grid on
-    axis equal
-    view(-35,45);
-    scatter3(G_p_S_true(1,animation_indices(1)),...
-             G_p_S_true(2,animation_indices(1)),...
-             G_p_S_true(3,animation_indices(1)), 15, 'g' , 'filled');    
-    for anim_idx = 2:length(animation_indices)
-        idx_end = animation_indices(anim_idx);
-        idx_start = animation_indices(anim_idx-1);
-        figure(animation_fig); hold on;
-        scatter3(G_p_S_true(1,idx_end), G_p_S_true(2,idx_end), G_p_S_true(3,idx_end), 15, 'g' , 'filled');
-        plot3(G_p_S_true(1,idx_start:idx_end),...
-              G_p_S_true(2,idx_start:idx_end),...
-              G_p_S_true(3,idx_start:idx_end), 'g'); 
-        axis equal
-    end
-    scatter3(x_est(pos_idx(1)), x_est(pos_idx(2)), x_est(pos_idx(3)), 15, 'b' , 'filled');
-    R_est = quat2rotm(x_est(ori_idx)');
-    quiver3(x_est(pos_idx(1)), x_est(pos_idx(2)), x_est(pos_idx(3)),...
-            R_est(1,1), R_est(2,1), R_est(3,1),...
-            'color', 'r', 'LineWidth', 2, 'MaxHeadSize', 0.5);
-    quiver3(x_est(pos_idx(1)), x_est(pos_idx(2)), x_est(pos_idx(3)),...
-            R_est(1,2), R_est(2,2), R_est(3,2),...
-            'color', 'g', 'LineWidth', 2, 'MaxHeadSize', 0.5);
-    quiver3(x_est(pos_idx(1)), x_est(pos_idx(2)), x_est(pos_idx(3)),...
-            R_est(1,3), R_est(2,3), R_est(3,3),...
-            'color', 'b', 'LineWidth', 2, 'MaxHeadSize', 0.5);
 end
+error_relative_position = sqrt(diag(measurements_config.cov_relative_pose(4:6,4:6)));
+figure('Name','Relative 6DoF position'); hold on
+axes = {'x (m)','y (m)','z (m)'};
+for i = 1:3
+    subplot(3,1,i);
+    plot(time.absolute_time_true, measurements.relative_pose_meas(4+i,:), 'b'); hold on;
+    plot(time.absolute_time_true, measurements.relative_pose_true(4+i,:),'g'); hold on;
+    plot(time.absolute_time_true, measurements.relative_pose_true(4+i,:) + 3*error_relative_position(i),'r'); hold on;
+    plot(time.absolute_time_true, measurements.relative_pose_true(4+i,:) - 3*error_relative_position(i),'r'); hold on;
+    xlabel('time (s)')
+    ylabel(axes{i})
+    legend('measured','true','3\sigma - bound')
+    grid on
+end        
 
 
-figure(animation_fig); hold on;
-scatter3(x_est_rt(pos_idx(1),idx_clone),...
-                 x_est_rt(pos_idx(2),idx_clone),...
-                 x_est_rt(pos_idx(3),idx_clone), 15, 'b' , 'filled');
-        R_est = quat2rotm(x_est_rt(ori_idx,idx_clone)');
-        quiver3(x_est_rt(pos_idx(1),idx_clone),...
-                x_est_rt(pos_idx(2),idx_clone),...
-                x_est_rt(pos_idx(3),idx_clone),...
-                R_est(1,1), R_est(2,1), R_est(3,1),...
-                'color', 'r', 'LineWidth', 2, 'MaxHeadSize', 0.5);
-        quiver3(x_est_rt(pos_idx(1),idx_clone),...
-                x_est_rt(pos_idx(2),idx_clone),...
-                x_est_rt(pos_idx(3),idx_clone),...
-                R_est(1,2), R_est(2,2), R_est(3,2),...
-                'color', 'g', 'LineWidth', 2, 'MaxHeadSize', 0.5);
-        quiver3(x_est_rt(pos_idx(1),idx_clone),...
-                x_est_rt(pos_idx(2),idx_clone),...
-                x_est_rt(pos_idx(3),idx_clone),...
-                R_est(1,3), R_est(2,3), R_est(3,3),...
-                'color', 'b', 'LineWidth', 2, 'MaxHeadSize', 0.5);
-        
+
+
