@@ -54,7 +54,7 @@ end
 % MaxIter = 3;
 % for iter = 0:MaxIter
 
-sigma_homo = 1e-5; % noise for measurement
+sigma_homo = 1e-2; % noise for measurement
 sigma_q = 0.01; % noise for current camera orientation
 sigma_p = 0.01; % 0.2, noise for current camera position
 sigma_z = 0.01;

@@ -81,7 +81,7 @@ for newPose = 1:NumOfPoses
           
        % there need at least 3 images for ba   
        if length(measurePoses) > 2           
-           [FeaturesBag, AbsolutePoses, ~, ~,~] = BA_InverseDepth_2viewBLS(FeaturesBag, AbsolutePoses, PoseGraphMatrix, featureExtracted, measurePoses, CameraParams);
+           [FeaturesBag, AbsolutePoses, ~, ~,~] = BA_InverseDepth(FeaturesBag, AbsolutePoses, PoseGraphMatrix, featureExtracted, measurePoses, CameraParams);
 %           [FeaturesBag, AbsolutePoses, ~, ~,~,~] = BA_InverseDepth_2viewBLS_simulation(FeaturesBag, AbsolutePoses, PoseGraphMatrix, featureExtracted, measurePoses, CameraParams);
 %           [FeaturesBag, AbsolutePoses, ~, ~,~,~] = BA_InverseDepth_simulation(FeaturesBag, AbsolutePoses, PoseGraphMatrix, featureExtracted, measurePoses, CameraParams);
        end       
