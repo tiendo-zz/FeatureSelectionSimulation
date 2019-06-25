@@ -110,17 +110,17 @@ state.ori_size = 4;
 state.ori_idx = 1:4;
 state.pos_size = 3; 
 state.pos_idx = 5:7;
-state.size = state.ori_size + state.pos_size;
-state.idx = [state.ori_idx, state.pos_idx];
-state.count = 1;
+state.pose_size = state.ori_size + state.pos_size;
+state.pose_idx = [state.ori_idx, state.pos_idx];
+state.pose_count = 1;
 
 error_state.ori_size = 3; 
 error_state.ori_idx = 1:3;
 error_state.pos_size = 3; 
 error_state.pos_idx = 4:6;
-error_state.size = error_state.ori_size + error_state.pos_size;
-error_state.idx = [error_state.ori_idx, error_state.pos_idx];
-error_state.count = 1;
+error_state.pose_size = error_state.ori_size + error_state.pos_size;
+error_state.pose_idx = [error_state.ori_idx, error_state.pos_idx];
+error_state.pose_count = 1;
 
 x_est = cell(1, time.count_time_steps);
 P_est = cell(1, time.count_time_steps);
@@ -128,12 +128,21 @@ P_est = cell(1, time.count_time_steps);
 for i= 1:time.count_time_steps
     window_size = i - max(i-delay_line,1) + 1;
     
-    x_est{i}.data = zeros(window_size*state.state_size,1);
+    x_est{i}.data = zeros(window_size*state.pose_size,1);
     x_est{i}.sz_idx = state;
     x_est{i}.sz_idx.count_states = window_size;
+    % Fill the pose index
+    for j=1:window_size
+        
+    end
     
-    x_est{i} = zeros(window_size*sz_idx.state_size,1);
-    P_est{i} = zeros(window_size*sz_idx.err_state_size,window_size*sz_idx.err_state_size);
+    P_est{i}.data = zeros(window_size*error_state.pose_size,window_size*error_state.pose_size);
+    P_est{i}.sz_idx = error_state;
+    P_est{i}.count_states = window_size;
+    % Fill the pose index
+    for j=1:window_size
+        
+    end
 end
 
 
