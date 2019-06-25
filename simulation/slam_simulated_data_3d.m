@@ -28,13 +28,30 @@ measurements_config.cov_relative_pose = [0.2^2, 0, 0,     0, 0, 0;
                                          0, 0, 0,      0, 1^2, 0;
                                          0, 0, 0,      0, 0, 1^2];   
                                      
-delay_line = 10;
-                                                                                  
+delay_line = 20;
+                             
+% World configuration paprameters
+camera_config.fov = pi/3;
+camera_config.fc = 400;
+camera_config.cc = [640; 480]/2;
+camera_config.sigma_pixel = 10; %(pixel)
+
+
+world_config.group = 'sphere';
+world_config.radius = 30;
+world_config.center = [0;0;0];
+world_config.point_feature_num = 100;
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Generate and plot/visualize data for a slam experiment
 
 % Real world simulation: Generate data for a slam experiment
-[time, trajectory, measurements] = real_world_simulation(time_config, trajectory_config, measurements_config);
+[time, trajectory, world, measurements] = real_world_simulation(time_config, ...
+                                                                trajectory_config, ...
+                                                                world_config, ...
+                                                                camera_config, ...
+                                                                measurements_config);
 
 % Visualize the trajectory and enviroment
 % TODO: Make the trajectory visualization into animation
@@ -58,6 +75,12 @@ for i=1:time.count_time_steps
     quiver3(p_true(1), p_true(2), p_true(3),...
             R_true(1,3), R_true(2,3), R_true(3,3),...
             'color', 'b', 'LineWidth', 2, 'MaxHeadSize', 0.5);
+end
+for k = 1:world_config.point_feature_num
+    scatter3(world.point_feat_Wposition{k}(1), ...
+             world.point_feat_Wposition{k}(2), ...
+             world.point_feat_Wposition{k}(3), ...
+             'b', 'filled');
 end
 
 % Plot the true and measured relative 6DoF poses
@@ -103,48 +126,159 @@ for i = 1:3
     grid on
 end        
 
+% scattering corner measurements of a random camera
+figure('Name','Example corner measurements'); hold on;
+for k = 5
+    scatter(measurements.corner_pixel_true{k}(1,:), ...
+            measurements.corner_pixel_true{k}(2,:), ...
+             'bo');
+    scatter(measurements.corner_pixel{k}(1,:), ...
+            measurements.corner_pixel{k}(2,:), ...
+            'rx');
+end
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Generate and plot/visualize data for a slam experiment
 
-state.ori_size = 4; 
-state.ori_idx = 1:4;
-state.pos_size = 3; 
-state.pos_idx = 5:7;
-state.pose_size = state.ori_size + state.pos_size;
-state.pose_idx = [state.ori_idx, state.pos_idx];
-state.pose_count = 1;
+ego_state.size = 7;
+ego_state.ori_size = 4; 
+ego_state.ori_idx = 1:4;
+ego_state.pos_size = 3; 
+ego_state.pos_idx = 5:7;
+ego_state.pose_size = ego_state.ori_size + ego_state.pos_size;
+ego_state.pose_idx = [ego_state.ori_idx, ego_state.pos_idx];
+ego_state.count = 1;
 
-error_state.ori_size = 3; 
-error_state.ori_idx = 1:3;
-error_state.pos_size = 3; 
-error_state.pos_idx = 4:6;
-error_state.pose_size = error_state.ori_size + error_state.pos_size;
-error_state.pose_idx = [error_state.ori_idx, error_state.pos_idx];
-error_state.pose_count = 1;
+world_state.point_feat_size = 3;
+world_state.point_feat_idx = 1:3;
+world_state.point_feat_count = world_config.point_feature_num;
+
+
+error_ego_state.size = 6;
+error_ego_state.ori_size = 3; 
+error_ego_state.ori_idx = 1:3;
+error_ego_state.pos_size = 3; 
+error_ego_state.pos_idx = 4:6;
+error_ego_state.pose_size = error_ego_state.ori_size + error_ego_state.pos_size;
+error_ego_state.pose_idx = [error_ego_state.ori_idx, error_ego_state.pos_idx];
+error_ego_state.pose_count = 1;
+
+error_world_state.point_feat_size = 3;
+error_world_state.point_feat_idx = 1:3;
+error_world_state.point_feat_count = world_config.point_feature_num;
 
 x_est = cell(1, time.count_time_steps);
 P_est = cell(1, time.count_time_steps);
+
 % estimated state and covariance
+% this script initialize the size and
 for i= 1:time.count_time_steps
     window_size = i - max(i-delay_line,1) + 1;
-    
-    x_est{i}.data = zeros(window_size*state.pose_size,1);
-    x_est{i}.sz_idx = state;
-    x_est{i}.sz_idx.count_states = window_size;
-    % Fill the pose index
-    for j=1:window_size
         
+    x_est{i}.sz_idx.ego = ego_state;
+    x_est{i}.sz_idx.ego.count = window_size;
+    x_est{i}.sz_idx.ego_idx = cell(window_size,1);
+    % Fill the ego index
+    for j=1:x_est{i}.sz_idx.ego.count
+        x_est{i}.sz_idx.ego_idx{j} = ...
+            ((j-1)*x_est{i}.sz_idx.ego.size+1):(j*x_est{i}.sz_idx.ego.size);
+    end
+    x_est{i}.sz_idx.world = error_world_state;
+    x_est{i}.sz_idx.world_idx = cell(x_est{i}.sz_idx.world.point_feat_count,1);
+    % Fill the world index
+    for j=1:x_est{i}.sz_idx.world.point_feat_count
+        x_est{i}.sz_idx.world_idx{j} = ...
+            ((j-1)*x_est{i}.sz_idx.world.point_feat_size+1):(j*x_est{i}.sz_idx.world.point_feat_size);
+    end
+    x_est{i}.data = zeros(x_est{i}.sz_idx.ego.count*x_est{i}.sz_idx.ego.size + ...
+                          x_est{i}.sz_idx.world.point_feat_count*x_est{i}.sz_idx.world.point_feat_size, 1);
+    
+    
+    P_est{i}.sz_idx.ego = error_ego_state;
+    P_est{i}.sz_idx.ego.count = window_size;
+    P_est{i}.sz_idx.ego_idx = cell(window_size,1);
+    % Fill the ego index
+    for j=1:P_est{i}.sz_idx.ego.count
+        P_est{i}.sz_idx.ego_idx{j}=...
+            ((j-1)*P_est{i}.sz_idx.ego.size+1):(j*P_est{i}.sz_idx.ego.size);
     end
     
-    P_est{i}.data = zeros(window_size*error_state.pose_size,window_size*error_state.pose_size);
-    P_est{i}.sz_idx = error_state;
-    P_est{i}.count_states = window_size;
-    % Fill the pose index
-    for j=1:window_size
-        
+    P_est{i}.sz_idx.world = world_state;
+    P_est{i}.sz_idx.world_idx = cell(x_est{i}.sz_idx.world.point_feat_count,1);    
+    % Fill the world index
+    for j=1:x_est{i}.sz_idx.world.point_feat_count
+        x_est{i}.sz_idx.world_idx{j} = ...
+            ((j-1)*x_est{i}.sz_idx.world.point_feat_size+1):(j*x_est{i}.sz_idx.world.point_feat_size);
     end
+    full_error_state_size = P_est{i}.sz_idx.ego.count*P_est{i}.sz_idx.ego.size + ...
+                            P_est{i}.sz_idx.world.point_feat_count*P_est{i}.sz_idx.world.point_feat_size;
+    P_est{i}.data = zeros(full_error_state_size,full_error_state_size);
 end
 
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Propagation only
+% TODO: Pack it into a function
+for i = 1:time.count_time_steps    
+    if i == 1
+        ori_state_ids = x_est{i}.sz_idx.ego_idx{i}(x_est{i}.sz_idx.ego.ori_idx);
+        pos_state_ids = x_est{i}.sz_idx.ego_idx{i}(x_est{i}.sz_idx.ego.pos_idx);
+        x_est{i}.data(pos_state_ids) = trajectory.position_true(:,i);
+        x_est{i}.data(ori_state_ids) = rotm2quat(trajectory.orientation_true(:,:,i))';
+        continue;
+    end
+    ori_state_ids = x_est{i}.sz_idx.ego_idx{i}(x_est{i}.sz_idx.ego.ori_idx);
+    pos_state_ids = x_est{i}.sz_idx.ego_idx{i}(x_est{i}.sz_idx.ego.pos_idx);
+    ori_state_prev_ids = x_est{i-1}.sz_idx.ego_idx{i-1}(x_est{i-1}.sz_idx.ego.ori_idx);
+    pos_state_prev_ids = x_est{i-1}.sz_idx.ego_idx{i-1}(x_est{i-1}.sz_idx.ego.pos_idx);
+    
+    % copy/clone the previous state
+    x_est{i}.data(1:x_est{i-1}.sz_idx.ego.count*x_est{i-1}.sz_idx.ego.size) = ...
+        x_est{i-1}.data(1:x_est{i-1}.sz_idx.ego.count*x_est{i-1}.sz_idx.ego.size);
+    
+    % augment new state from rel. pose measurement
+    x_est{i}.data(ori_state_ids) = quatmultiply( x_est{i-1}.data(ori_state_prev_ids)', measurements.relative_pose_meas(x_est{i}.sz_idx.ego.ori_idx, i)' )';
+    x_est{i}.data(pos_state_ids) = x_est{i-1}.data(pos_state_prev_ids) + ...
+        quat2rotm(x_est{i-1}.data(ori_state_prev_ids)')*measurements.relative_pose_meas(x_est{i}.sz_idx.ego.pos_idx, i);        
+    
+    % cov propagation
+    ego_past_state = 1:P_est{i-1}.sz_idx.ego.count*P_est{i-1}.sz_idx.ego.size;
+    P_est{i}.data(ego_past_state,ego_past_state) = ...
+        P_est{i-1}.data(ego_past_state,ego_past_state);
+    error_ori_ids = P_est{i}.sz_idx.ego_idx{i}(P_est{i}.sz_idx.ego.ori_idx);
+    error_pos_ids = P_est{i}.sz_idx.ego_idx{i}(P_est{i}.sz_idx.ego.pos_idx);
+    error_ori_prev_ids = P_est{i-1}.sz_idx.ego_idx{i-1}(P_est{i-1}.sz_idx.ego.ori_idx);
+    error_pos_prev_ids = P_est{i-1}.sz_idx.ego_idx{i-1}(P_est{i-1}.sz_idx.ego.pos_idx);
+    Phi = [eye(3) zeros(3);...
+        -skewsymm(quat2rotm(x_est{i-1}.data(ori_state_prev_ids)')*measurements.relative_pose_meas(x_est{i}.sz_idx.ego.pos_idx, i)) eye(3)];
+    G = -[quat2rotm(x_est{i-1}.data(ori_state_prev_ids)') zeros(3);...
+          zeros(3) quat2rotm(x_est{i-1}.data(ori_state_prev_ids)')];
+    P_est{i}.data([error_ori_ids error_pos_ids],[error_ori_ids error_pos_ids]) = ...
+        Phi * P_est{i-1}.data([error_ori_prev_ids error_pos_prev_ids], [error_ori_prev_ids error_pos_prev_ids]) * Phi' + ...
+        G * measurements_config.cov_relative_pose * G';
+end
 
+% Plot propagated trajectory
+figure('Name','Propagated trajectory'); hold on;
+xlabel('x (m)')
+ylabel('y (m)')
+zlabel('z (m)')
+grid on
+axis equal 
+for i=1:time.count_time_steps
+    ori_state_ids = x_est{i}.sz_idx.ego_idx{i}(x_est{i}.sz_idx.ego.ori_idx);
+    pos_state_ids = x_est{i}.sz_idx.ego_idx{i}(x_est{i}.sz_idx.ego.pos_idx);
+    p_est = x_est{i}.data(pos_state_ids);
+    R_est = quat2rotm(x_est{i}.data(ori_state_ids)');
+    scatter3(p_est(1), p_est(2), p_est(3), 15, 'g' , 'filled');
+    quiver3(p_est(1), p_est(2), p_est(3),...
+            R_est(1,1), R_est(2,1), R_est(3,1),...
+            'color', 'r', 'LineWidth', 2, 'MaxHeadSize', 0.5);
+    quiver3(p_est(1), p_est(2), p_est(3),...
+            R_est(1,2), R_est(2,2), R_est(3,2),...
+            'color', 'g', 'LineWidth', 2, 'MaxHeadSize', 0.5);
+    quiver3(p_est(1), p_est(2), p_est(3),...
+            R_est(1,3), R_est(2,3), R_est(3,3),...
+            'color', 'b', 'LineWidth', 2, 'MaxHeadSize', 0.5);
+end
 
