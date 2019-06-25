@@ -26,7 +26,9 @@ measurements_config.cov_relative_pose = [0.2^2, 0, 0,     0, 0, 0;
                                          0, 0, 0.2^2,     0, 0, 0;
                                          0, 0, 0,      1^2, 0, 0;
                                          0, 0, 0,      0, 1^2, 0;
-                                         0, 0, 0,      0, 0, 1^2];                                       
+                                         0, 0, 0,      0, 0, 1^2];   
+                                     
+delay_line = 10;
                                                                                   
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Generate and plot/visualize data for a slam experiment
@@ -100,6 +102,39 @@ for i = 1:3
     legend('measured','true','3\sigma - bound')
     grid on
 end        
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Generate and plot/visualize data for a slam experiment
+
+state.ori_size = 4; 
+state.ori_idx = 1:4;
+state.pos_size = 3; 
+state.pos_idx = 5:7;
+state.size = state.ori_size + state.pos_size;
+state.idx = [state.ori_idx, state.pos_idx];
+state.count = 1;
+
+error_state.ori_size = 3; 
+error_state.ori_idx = 1:3;
+error_state.pos_size = 3; 
+error_state.pos_idx = 4:6;
+error_state.size = error_state.ori_size + error_state.pos_size;
+error_state.idx = [error_state.ori_idx, error_state.pos_idx];
+error_state.count = 1;
+
+x_est = cell(1, time.count_time_steps);
+P_est = cell(1, time.count_time_steps);
+% estimated state and covariance
+for i= 1:time.count_time_steps
+    window_size = i - max(i-delay_line,1) + 1;
+    
+    x_est{i}.data = zeros(window_size*state.state_size,1);
+    x_est{i}.sz_idx = state;
+    x_est{i}.sz_idx.count_states = window_size;
+    
+    x_est{i} = zeros(window_size*sz_idx.state_size,1);
+    P_est{i} = zeros(window_size*sz_idx.err_state_size,window_size*sz_idx.err_state_size);
+end
 
 
 
