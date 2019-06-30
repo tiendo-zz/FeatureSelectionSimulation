@@ -118,7 +118,6 @@ end
 % Perturb features' positions
 
 
-
 % Visual measurement graph
 
 

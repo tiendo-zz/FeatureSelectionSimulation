@@ -1,4 +1,8 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Load dependencies
+addpath('../utilities/GeometricToolbox/')
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Load configuration settings
 % TODO: Move implementation of trajectory generators in a function
 
@@ -21,12 +25,13 @@ trajectory_config.orientation = @(t)...
                                                                                       cos(trajectory_config.angular_freq*t)^2,                                              cos(trajectory_config.angular_freq*t)*sin(trajectory_config.angular_freq*t),                                       -sin(trajectory_config.angular_freq*t)];
 % Measurements configuration parameters
 % 6-dof relative pose (orientation, position) measurement parameters 
-measurements_config.cov_relative_pose = [0.2^2, 0, 0,     0, 0, 0;
-                                         0, 0.2^2, 0,     0, 0, 0;
-                                         0, 0, 0.2^2,     0, 0, 0;
-                                         0, 0, 0,      1^2, 0, 0;
-                                         0, 0, 0,      0, 1^2, 0;
-                                         0, 0, 0,      0, 0, 1^2];   
+% measurements_config.cov_relative_pose = [0.01^2, 0, 0,     0, 0, 0;
+%                                          0, 0.01^2, 0,     0, 0, 0;
+%                                          0, 0, 0.01^2,     0, 0, 0;
+%                                          0, 0, 0,      0.1^2, 0, 0;
+%                                          0, 0, 0,      0, 0.1^2, 0;
+%                                          0, 0, 0,      0, 0, 0.1^2];   
+measurements_config.cov_relative_pose = 1e-3 * eye(6);
                                      
 delay_line = 20;
                              
@@ -40,7 +45,7 @@ camera_config.sigma_pixel = 10; %(pixel)
 world_config.group = 'sphere';
 world_config.radius = 30;
 world_config.center = [0;0;0];
-world_config.point_feature_num = 100;
+world_config.point_feature_num = 10;
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -221,10 +226,16 @@ end
 % TODO: Pack it into a function
 for i = 1:time.count_time_steps    
     if i == 1
+        % Initialize state
         ori_state_ids = x_est{i}.sz_idx.ego_idx{i}(x_est{i}.sz_idx.ego.ori_idx);
         pos_state_ids = x_est{i}.sz_idx.ego_idx{i}(x_est{i}.sz_idx.ego.pos_idx);
         x_est{i}.data(pos_state_ids) = trajectory.position_true(:,i);
         x_est{i}.data(ori_state_ids) = rotm2quat(trajectory.orientation_true(:,:,i))';
+        % Initialize covariance
+        error_ori_ids = P_est{i}.sz_idx.ego_idx{i}(P_est{i}.sz_idx.ego.ori_idx);
+        error_pos_ids = P_est{i}.sz_idx.ego_idx{i}(P_est{i}.sz_idx.ego.pos_idx);
+        P_est{i}.data([error_ori_ids error_pos_ids],[error_ori_ids error_pos_ids]) = ...
+            1e-6 * eye(P_est{i}.sz_idx.ego.size);
         continue;
     end
     ori_state_ids = x_est{i}.sz_idx.ego_idx{i}(x_est{i}.sz_idx.ego.ori_idx);
@@ -264,7 +275,7 @@ xlabel('x (m)')
 ylabel('y (m)')
 zlabel('z (m)')
 grid on
-axis equal 
+axis equal
 for i=1:time.count_time_steps
     ori_state_ids = x_est{i}.sz_idx.ego_idx{i}(x_est{i}.sz_idx.ego.ori_idx);
     pos_state_ids = x_est{i}.sz_idx.ego_idx{i}(x_est{i}.sz_idx.ego.pos_idx);
@@ -280,5 +291,21 @@ for i=1:time.count_time_steps
     quiver3(p_est(1), p_est(2), p_est(3),...
             R_est(1,3), R_est(2,3), R_est(3,3),...
             'color', 'b', 'LineWidth', 2, 'MaxHeadSize', 0.5);
+    % Extract and draw ellipse uncertainty
+    error_pos_ids = P_est{i}.sz_idx.ego_idx{i}(P_est{i}.sz_idx.ego.pos_idx);
+    [U, D] = eigs(P_est{i}.data(error_pos_ids, error_pos_ids))
+    k = U(:, 3);
+    p = [];
+    for tt = 0:0.01:2*pi
+        R = cos(tt)*eye(3) + skewsymm(k) * sin(tt) + (1-cos(tt))*k*k';
+        v = P_est{i}.data(error_pos_ids, error_pos_ids) * R * U(:,1) + p_est;
+        p = [p; v'];
+    end
+    plot3(p(:,1), p(:,2), p(:,3), 'b');
+    grid on
+    axis equal
+    pause;
 end
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Measurement model and update
