@@ -46,7 +46,7 @@ camera_config.sigma_pixel = 0.01; %(pixel)
 world_config.group = 'sphere';
 world_config.radius = 30;
 world_config.center = [0;0;0];
-world_config.point_feature_num = 10;
+world_config.point_feature_num = 30;
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -480,3 +480,146 @@ for i=1:considered_time
     axis equal    
 end
 legend('prior', 'post', 'true');
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%% Measurement selection error estimate vs trace %%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+num_selected_feature = 8;
+selection_pattern = nchoosek(1:world_config.point_feature_num, num_selected_feature);
+performance_eval = struct;
+performance_eval.trace = zeros(size(selection_pattern,1),1);
+performance_eval.position_error = zeros(size(selection_pattern,1),1);
+performance_eval.full_state_error = zeros(size(selection_pattern,1),1);
+
+for select = 1:size(selection_pattern,1)
+    % Progress indicator
+    if mod(select, 1000) == 0
+        fprintf('progress %02.4f\n', select/size(selection_pattern,1));
+    end
+    % 0. Selecting a set of features from all measurements
+    considered_feat_ids = selection_pattern(select, :);
+
+    % 1. Randomly pick any-time propagated state and covariance
+    considered_time = 4;
+    x_prior = x_est{considered_time}.data;
+    P_prior = P_est{considered_time}.data;
+    % Ego state indices
+    ori_part = x_est{considered_time}.sz_idx.ego.ori_idx;
+    pos_part = x_est{considered_time}.sz_idx.ego.pos_idx;
+    ego_state = x_est{considered_time}.sz_idx.ego_idx; % should have cell access <= considered time
+
+    % Feature state indices
+    num_feat_observed = x_est{considered_time}.sz_idx.world.point_feat_count;
+    feat_part = x_est{considered_time}.sz_idx.world.point_feat_idx;
+    feat_state_ids = x_est{considered_time}.sz_idx.world_idx; % should have cell access <= num feat
+
+    % Error ego state indices
+    eori_part = P_est{considered_time}.sz_idx.ego.ori_idx;
+    epos_part = P_est{considered_time}.sz_idx.ego.pos_idx;
+    error_ego_ids = P_est{considered_time}.sz_idx.ego_idx;
+
+    % Error feat state ids
+    efeat_part = P_est{considered_time}.sz_idx.world.point_feat_idx;
+    error_feat_ids = P_est{considered_time}.sz_idx.world_idx;
+
+    % 2. Do a map-based slam update for the state
+
+    % 2a. Measurement extraction
+    corner_meas_full = measurements.corner_pixel{considered_time};
+    corner_meas = corner_meas_full(1:2, :);
+    homogeneous_meas = (corner_meas - camera_config.cc)/camera_config.fc;
+    z = homogeneous_meas;
+
+    % 2b. Estimated quantity so far:
+    G_R_Ck = quat2rotm(x_prior(ego_state{considered_time}(ori_part))');
+    G_p_Ck = x_prior(ego_state{considered_time}(pos_part));
+    G_R_C1 = quat2rotm(x_prior(ego_state{1}(ori_part))');
+    G_p_C1 = x_prior(ego_state{1}(pos_part));
+
+    % 2c. Compute Jacobian and residual
+    meas_size = 2; 
+    H = zeros(meas_size * num_selected_feature, size(P_prior,1));
+    z_hat = zeros(2, num_selected_feature);
+    % TODO: Update meas_size to config    
+    for k = 1:num_selected_feature
+        C1_p_f = x_prior(feat_state_ids{ considered_feat_ids(k) }(feat_part));
+        Ck_p_f = G_R_Ck'*G_R_C1*C1_p_f - G_R_Ck'*(G_p_Ck - G_p_C1);
+        z_hat(:, k) = Ck_p_f(1:2)/Ck_p_f(3);
+
+        dz_dCk_p_f = 1/Ck_p_f(3) * [1   0    -z_hat(1); ...
+                                    0   1    -z_hat(2)];
+        dCk_p_f_dGttCk = G_R_Ck'*skewsymm( G_R_C1*C1_p_f - G_p_Ck + G_p_C1 );
+        dCk_p_f_dGpCk = -G_R_Ck';
+        dCk_p_f_dGttC1 = -G_R_Ck'*skewsymm( G_R_C1*C1_p_f );
+        dCk_p_f_dGpC1 = G_R_Ck';
+        dCk_p_f_dC1pf = G_R_Ck'*G_R_C1;
+
+        jacobian_meas_k_row_inds = ((k-1)*meas_size+1):(k*meas_size);
+        H(jacobian_meas_k_row_inds, error_ego_ids{1}(eori_part)) = dz_dCk_p_f*dCk_p_f_dGttC1;
+        H(jacobian_meas_k_row_inds, error_ego_ids{1}(epos_part)) = dz_dCk_p_f*dCk_p_f_dGpC1;
+
+        H(jacobian_meas_k_row_inds, error_ego_ids{considered_time}(eori_part)) = dz_dCk_p_f*dCk_p_f_dGttCk;
+        H(jacobian_meas_k_row_inds, error_ego_ids{considered_time}(epos_part)) = dz_dCk_p_f*dCk_p_f_dGpCk;
+
+        H(jacobian_meas_k_row_inds, error_feat_ids{ considered_feat_ids(k) }(efeat_part)) = dz_dCk_p_f*dCk_p_f_dC1pf;
+    end
+
+    % 2d. Kalman's equations
+    r = z(:, considered_feat_ids) - z_hat;
+    r = reshape(r, [numel(r), 1]);
+    S = H * P_prior * H' + camera_config.sigma_pixel/camera_config.fc * eye(size(H,1));
+    K = P_prior * H' * inv(S);
+    x_correction = K*r;
+    P_post = P_prior - K * S * K';
+    x_posterior = x_prior;
+    x_true = zeros(size(x_prior));
+    
+    % 2e. Update and compute error
+    position_posterior_error = [];
+    for i = 1:x_est{considered_time}.sz_idx.ego.count
+        q = [1; 1/2 * x_correction(error_ego_ids{i}(eori_part))]; q = q/norm(q);
+        x_posterior(ego_state{i}(ori_part)) = quatmultiply(q', x_prior(ego_state{i}(ori_part))')';
+        x_posterior(ego_state{i}(pos_part)) = x_prior(ego_state{i}(pos_part)) + x_correction(error_ego_ids{i}(epos_part));
+
+        x_true(ego_state{i}(pos_part)) = trajectory.position_true(:,i);
+        x_true(ego_state{i}(ori_part)) = rotm2quat(trajectory.orientation_true(:,:,i))';
+        
+        position_posterior_error = [position_posterior_error; x_true(ego_state{i}(pos_part)) - x_posterior(ego_state{i}(pos_part))];
+    end
+    x_posterior(feat_state_ids{1}(1):feat_state_ids{num_feat_observed}(end)) = ...
+        x_prior(feat_state_ids{1}(1):feat_state_ids{num_feat_observed}(end)) + ...
+        x_correction(error_feat_ids{1}(1):error_feat_ids{num_feat_observed}(end));
+
+    for k = 1:world_state.point_feat_count
+        x_true(feat_state_ids{k}) = world.point_feat_position{k}(1:3);    
+    end
+    
+    % 3. Record results in cell
+    performance_eval.position_error(select) = norm(position_posterior_error);
+    performance_eval.trace(select) = trace(P_post);
+end
+
+figure;
+plot(performance_eval.trace, performance_eval.position_error, 'b.');
+xlabel('trace of P posterior - full');
+ylabel('position error');
+title('Effect of trace of posterior cov impacts on what type of selected features');
+
+
+x = []; y = []; c = [];
+for pos_err_thres = 2:0.01:8
+    for trace_thres = 3.5:0.005:5
+        count = sum(     (performance_eval.position_error >= (pos_err_thres - 0.6) & ...
+                          performance_eval.position_error < (pos_err_thres + 0.6) & ...
+                          performance_eval.trace >= (trace_thres - 0.3) & ...
+                          performance_eval.trace < (trace_thres + 0.3)));
+        x = [x; trace_thres];
+        y = [y; pos_err_thres];
+        c = [c; count];
+    end
+end
+c = c + 1;
+colorMap = jet(ceil(max(c)/1000));
+figure;
+scatter(x, y, 0.1, colorMap(ceil(c/1000)));
+
